@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import discord; print\\('discord.py', discord.__version__\\)\")",
+      "Bash(python3 -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('bot.py'\\).read\\(\\)\\); ast.parse\\(open\\('game.py'\\).read\\(\\)\\); print\\('OK: syntax valid'\\)\")",
+      "Bash(find ~/Downloads ~/Desktop ~/Documents -maxdepth 3 -iname \"*reply-card*\" -o -iname \"*reply_card*\" 2>/dev/null)",
+      "Bash(mv /Users/Sarim0_0/Downloads/reply-cards.csv /Users/Sarim0_0/Downloads/whodis_bot/reply-cards.csv *)",
+      "Read(//Users/Sarim0_0/.claude/**)",
+      "Bash(find / -maxdepth 2 -iname \"*.claude*\")",
+      "WebFetch(domain:impeccable.style)",
+      "Bash(npx --version)",
+      "Bash(brew --version)",
+      "Bash(sw_vers -productVersion)",
+      "Bash(curl -fsSL https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-x64.tar.gz -o /private/tmp/claude-502/-Users-Sarim0-0-Downloads-whodis-bot/a2b55c38-2ea0-4e29-9cf9-75ccbf8ced76/scratchpad/node.tar.gz)",
+      "Bash(curl -fsSL https://nodejs.org/dist/v22.23.1/SHASUMS256.txt -o /private/tmp/claude-502/-Users-Sarim0-0-Downloads-whodis-bot/a2b55c38-2ea0-4e29-9cf9-75ccbf8ced76/scratchpad/SHASUMS256.txt)",
+      "Bash(shasum -a 256 node.tar.gz)",
+      "Bash(mkdir -p ~/.local/nodejs)",
+      "Bash(tar -xzf /private/tmp/claude-502/-Users-Sarim0-0-Downloads-whodis-bot/a2b55c38-2ea0-4e29-9cf9-75ccbf8ced76/scratchpad/node.tar.gz -C ~/.local/nodejs --strip-components=1)",
+      "Bash(~/.local/nodejs/bin/node --version)",
+      "Bash(~/.local/nodejs/bin/npm --version)",
+      "Bash(grep -n \"nodejs\\\\|NODE\" ~/.zshrc ~/.zprofile ~/.bash_profile ~/.bashrc 2>/dev/null)",
+      "Bash(mv \"/Users/Sarim0_0/Downloads/WhoDis?Logo.png\" \"/Users/Sarim0_0/Downloads/whodis_bot/WhoDis?Logo.png\" *)",
+      "Bash(chmod +x /Users/Sarim0_0/Downloads/whodis_bot/launch.sh)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 5,
+            "statusMessage": "Checking UI changes"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"${CLAUDE_PROJECT_DIR}/.claude/skills/impeccable/scripts/hook.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Design deep pass"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "Impeccable design detector: immediate-tier checks after Edit/Write/MultiEdit on UI files, full-rule deep pass on Stop."
+}

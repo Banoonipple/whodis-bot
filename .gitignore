@@ -1,0 +1,13 @@
+# Secrets
+.env
+
+# Superseded/archived content (kept locally, not in repo history)
+data/_archive_old/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
