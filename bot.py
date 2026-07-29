@@ -59,29 +59,26 @@ bot = commands.Bot(command_prefix="!whodis-unused!", intents=INTENTS)
 # channel_id -> WhoDisGame
 games: Dict[int, WhoDisGame] = {}
 
+# channel_id -> the current round's announcement message (edited live to show
+# submission progress)
+round_messages: Dict[int, discord.Message] = {}
+
 
 def get_game(channel_id: int) -> Optional[WhoDisGame]:
     return games.get(channel_id)
-
-
-def truncate(text: str, limit: int = 100) -> str:
-    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 # ---------------------------------------------------------------------------
 # UI Components
 # ---------------------------------------------------------------------------
 
-class SubmitSelect(discord.ui.Select):
-    def __init__(self, game: WhoDisGame, player_hand):
-        options = [
-            discord.SelectOption(
-                label=f"Card {i + 1}", description=truncate(card["text"], 90), value=card["id"]
-            )
-            for i, card in enumerate(player_hand)
-        ]
-        super().__init__(placeholder="Choose your reply…", options=options, min_values=1, max_values=1)
+class SubmitButton(discord.ui.Button):
+    """One numbered button per hand card, mirroring the numbered image grid
+    shown above it -- one tap instead of opening a dropdown and choosing."""
+    def __init__(self, game: WhoDisGame, card: dict, index: int):
+        super().__init__(label=str(index + 1), style=discord.ButtonStyle.primary, row=index // 5)
         self.game = game
+        self.card = card
 
     async def callback(self, interaction: discord.Interaction):
         game = get_game(interaction.channel_id)
@@ -89,7 +86,7 @@ class SubmitSelect(discord.ui.Select):
             await interaction.response.edit_message(content="This game has ended.", view=None)
             return
         try:
-            game.submit_reply(interaction.user.id, self.values[0])
+            game.submit_reply(interaction.user.id, self.card["id"])
         except GameError as e:
             await interaction.response.edit_message(content=f"⚠️ {e}", view=None)
             return
@@ -98,25 +95,24 @@ class SubmitSelect(discord.ui.Select):
             content="✅ Reply submitted! Waiting on the rest of the group…", view=None
         )
 
+        await update_submission_progress(interaction.channel, game)
         await auto_advance(interaction.channel, game)
 
 
 class SubmitView(discord.ui.View):
     def __init__(self, game: WhoDisGame, player_hand):
         super().__init__(timeout=300)
-        self.add_item(SubmitSelect(game, player_hand))
+        for i, card in enumerate(player_hand):
+            self.add_item(SubmitButton(game, card, i))
 
 
-class VoteSelect(discord.ui.Select):
-    def __init__(self, game: WhoDisGame, submissions):
-        options = [
-            discord.SelectOption(
-                label=f"Reply {i + 1}", description=truncate(sub.card["text"], 90), value=sub.card["id"]
-            )
-            for i, sub in enumerate(submissions)
-        ]
-        super().__init__(placeholder="Pick the funniest reply…", options=options, min_values=1, max_values=1)
+class VoteButton(discord.ui.Button):
+    """One numbered button per anonymized reply, mirroring the numbered image
+    grid shown above it."""
+    def __init__(self, game: WhoDisGame, submission, index: int):
+        super().__init__(label=str(index + 1), style=discord.ButtonStyle.success, row=index // 5)
         self.game = game
+        self.submission = submission
 
     async def callback(self, interaction: discord.Interaction):
         game = get_game(interaction.channel_id)
@@ -124,7 +120,7 @@ class VoteSelect(discord.ui.Select):
             await interaction.response.edit_message(content="This game has ended.", view=None)
             return
         try:
-            result = game.judge_pick(interaction.user.id, self.values[0])
+            result = game.judge_pick(interaction.user.id, self.submission.card["id"])
         except GameError as e:
             await interaction.response.edit_message(content=f"⚠️ {e}", view=None)
             return
@@ -137,7 +133,8 @@ class VoteSelect(discord.ui.Select):
 class VoteView(discord.ui.View):
     def __init__(self, game: WhoDisGame, submissions):
         super().__init__(timeout=300)
-        self.add_item(VoteSelect(game, submissions))
+        for i, sub in enumerate(submissions):
+            self.add_item(VoteButton(game, sub, i))
 
 
 def lobby_embed(game: WhoDisGame) -> discord.Embed:
@@ -220,7 +217,11 @@ async def announce_round_result(channel: discord.abc.Messageable, game: WhoDisGa
     )
     embed.set_image(url="attachment://result.png")
     embed.set_footer(text=f"{result['winner_name']} now has {result['winner_score']} point(s).")
-    await channel.send(embed=embed, file=file)
+    result_msg = await channel.send(embed=embed, file=file)
+    try:
+        await result_msg.add_reaction("🏆")
+    except discord.HTTPException:
+        pass
 
     if game.phase == WhoDisGame.PHASE_FINISHED:
         board = "\n".join(f"**{p.score}** — {p.name}" for p in game.scoreboard())
@@ -228,9 +229,16 @@ async def announce_round_result(channel: discord.abc.Messageable, game: WhoDisGa
             f"🎉 **{result['winner_name']} wins the game!** 🎉\n\n**Final scores:**\n{board}"
         )
         games.pop(channel.id, None)
+        round_messages.pop(channel.id, None)
         return
 
     await announce_new_round(channel, game)
+
+
+def _round_footer_text(game: WhoDisGame, judge_name: str) -> str:
+    submitted = len(game.submissions)
+    total = len(game.non_judge_players())
+    return f"Judge: {judge_name} • {submitted}/{total} submitted"
 
 
 async def announce_new_round(channel: discord.abc.Messageable, game: WhoDisGame):
@@ -243,12 +251,27 @@ async def announce_new_round(channel: discord.abc.Messageable, game: WhoDisGame)
         color=COLOR_RED,
     )
     embed.set_image(url="attachment://inbox.png")
-    embed.set_footer(text=f"Judge: {judge.name}")
-    await channel.send(
+    embed.set_footer(text=_round_footer_text(game, judge.name))
+    msg = await channel.send(
         content=f"Everyone except {judge_mention} (this round's Judge): use **/submit** to play your reply!",
         embed=embed,
         file=file,
     )
+    round_messages[channel.id] = msg
+
+
+async def update_submission_progress(channel: discord.abc.Messageable, game: WhoDisGame):
+    """Live-edits the round announcement to show X/Y submitted as replies come in."""
+    msg = round_messages.get(channel.id)
+    if msg is None or not msg.embeds:
+        return
+    judge = game.players[game.current_judge_id()]
+    embed = msg.embeds[0]
+    embed.set_footer(text=_round_footer_text(game, judge.name))
+    try:
+        await msg.edit(embed=embed)
+    except discord.HTTPException:
+        pass
 
 
 async def auto_advance(channel: discord.abc.Messageable, game: WhoDisGame):
@@ -485,14 +508,41 @@ async def vote(interaction: discord.Interaction):
     )
 
 
+async def fetch_avatar_bytes(client: discord.Client, user_id: int) -> Optional[bytes]:
+    try:
+        user = client.get_user(user_id) or await client.fetch_user(user_id)
+        return await user.display_avatar.replace(size=128, format="png").read()
+    except discord.HTTPException:
+        return None
+
+
 @bot.tree.command(name="whodis-scores", description="Show the current Who Dis? scoreboard")
 async def whodis_scores(interaction: discord.Interaction):
     game = get_game(interaction.channel_id)
     if game is None:
         await interaction.response.send_message("There's no game running here.", ephemeral=True)
         return
-    board = "\n".join(f"**{p.score}** — {p.name}" for p in game.scoreboard())
-    await interaction.response.send_message(f"📊 **Scoreboard** (playing to {game.points_to_win}):\n{board}")
+
+    # Fetching avatars is a network call per player -- defer so a slow one
+    # can't blow the 3-second interaction budget (same crash shape as the
+    # font bug: an unhandled delay/exception here would silently eat the
+    # response and Discord would show "The application did not respond").
+    await interaction.response.defer()
+
+    entries = []
+    for p in game.scoreboard():
+        avatar_bytes = None if p.is_bot else await fetch_avatar_bytes(bot, p.user_id)
+        entries.append((p.name, p.score, avatar_bytes))
+
+    board_img = ci.make_scoreboard(entries, game.points_to_win)
+    file = discord.File(ci.image_to_file_bytes(board_img), filename="scoreboard.png")
+    embed = discord.Embed(
+        title="📊 Scoreboard",
+        description=f"Playing to **{game.points_to_win}** points",
+        color=COLOR_GREEN,
+    )
+    embed.set_image(url="attachment://scoreboard.png")
+    await interaction.followup.send(embed=embed, file=file)
 
 
 @bot.tree.command(name="whodis-end", description="End/cancel the Who Dis? game in this channel")
@@ -507,6 +557,7 @@ async def whodis_end(interaction: discord.Interaction):
         )
         return
     games.pop(interaction.channel_id, None)
+    round_messages.pop(interaction.channel_id, None)
     await interaction.response.send_message("🛑 Game ended.")
 
 
