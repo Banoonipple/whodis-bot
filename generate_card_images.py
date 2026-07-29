@@ -30,79 +30,13 @@ MASCOT_CROP_BOX = (120, 130, 500, 950)  # just the mascot icon, excludes the wor
 
 CANVAS_SIZE = (1000, 1300)
 
+FONTS = ASSETS / "fonts"
+FONT_BOLD = str(FONTS / "Poppins-Bold.ttf")
+FONT_MEDIUM = str(FONTS / "Poppins-Medium.ttf")
 
-def _try_font(path):
-    for idx in (None, 0):
-        try:
-            if idx is None:
-                ImageFont.truetype(path, 20)
-            else:
-                ImageFont.truetype(path, 20, index=idx)
-            return path
-        except Exception:
-            continue
-    return None
-
-
-def _find_system_font(bold=True):
-    """Try common font paths across Mac/Windows/Linux until one works."""
-    import platform, glob
-    system = platform.system()
-
-    if bold:
-        direct = [
-            "/Library/Fonts/Arial Bold.ttf",
-            "/Library/Fonts/Arial Unicode.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            r"C:\Windows\Fonts\arialbd.ttf",
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ]
-    else:
-        direct = [
-            "/Library/Fonts/Arial.ttf",
-            "/Library/Fonts/Arial Unicode.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            r"C:\Windows\Fonts\arial.ttf",
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Regular.ttf",
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Medium.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-
-    for p in direct:
-        if Path(p).exists():
-            result = _try_font(p)
-            if result:
-                return result
-
-    search_dirs = {
-        "Darwin": ["/Library/Fonts", "/System/Library/Fonts/Supplemental", "/System/Library/Fonts"],
-        "Windows": [r"C:\Windows\Fonts"],
-    }.get(system, ["/usr/share/fonts", "/usr/local/share/fonts"])
-
-    for d in search_dirs:
-        for ext in ("ttf", "otf", "ttc"):
-            for p in sorted(glob.glob(f"{d}/**/*.{ext}", recursive=True)):
-                if "Italic" not in p:
-                    result = _try_font(p)
-                    if result:
-                        return result
-    return None
-
-
-FONT_BOLD = _find_system_font(bold=True)
-FONT_MEDIUM = _find_system_font(bold=False) or FONT_BOLD
-
-if not FONT_BOLD:
-    raise SystemExit(
-        "ERROR: Could not find any usable font.\n"
-        "Fix: run  pip3 install pillow --upgrade  then try again.\n"
-        "Or install any .ttf font to /Library/Fonts/"
-    )
+for _p in (FONT_BOLD, FONT_MEDIUM):
+    if not Path(_p).exists():
+        raise SystemExit(f"Missing bundled font: {_p}")
 
 print(f"Using fonts: Bold={FONT_BOLD}, Medium={FONT_MEDIUM}")
 

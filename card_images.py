@@ -12,60 +12,14 @@ from PIL import Image, ImageDraw, ImageFont
 
 ASSETS = Path(__file__).parent / "assets"
 CARDS = ASSETS / "cards"
+FONTS = ASSETS / "fonts"
 
-def _try_font(path):
-    for idx in (None, 0):
-        try:
-            if idx is None:
-                ImageFont.truetype(path, 20)
-            else:
-                ImageFont.truetype(path, 20, index=idx)
-            return path
-        except Exception:
-            continue
-    return None
-
-def _find_system_font(bold=True):
-    import platform, glob
-    if bold:
-        direct = [
-            "/Library/Fonts/Arial Bold.ttf", "/Library/Fonts/Arial Unicode.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            r"C:\Windows\Fonts\arialbd.ttf",
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ]
-    else:
-        direct = [
-            "/Library/Fonts/Arial.ttf", "/Library/Fonts/Arial Unicode.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            r"C:\Windows\Fonts\arial.ttf",
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Regular.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-    for p in direct:
-        if Path(p).exists():
-            result = _try_font(p)
-            if result:
-                return result
-    search_dirs = {
-        "Darwin": ["/Library/Fonts", "/System/Library/Fonts/Supplemental", "/System/Library/Fonts"],
-        "Windows": [r"C:\Windows\Fonts"],
-    }.get(platform.system(), ["/usr/share/fonts", "/usr/local/share/fonts"])
-    for d in search_dirs:
-        for ext in ("ttf", "otf", "ttc"):
-            for p in sorted(glob.glob(f"{d}/**/*.{ext}", recursive=True)):
-                if "Italic" not in p:
-                    result = _try_font(p)
-                    if result:
-                        return result
-    return None
-
-FONT_BOLD = _find_system_font(bold=True) or "arial.ttf"
+# Bundled in the repo (not relying on system fonts, which aren't installed on
+# minimal hosts like Railway's default container -- that gap silently fell
+# back to a nonexistent "arial.ttf" path and crashed /submit and /vote).
+FONT_BOLD = str(FONTS / "Poppins-Bold.ttf")
+if not Path(FONT_BOLD).exists():
+    raise SystemExit(f"Missing bundled font: {FONT_BOLD}")
 
 def _load_font(path, size):
     for idx in (None, 0):
