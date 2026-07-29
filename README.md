@@ -32,7 +32,31 @@ The first time it connects it will sync slash commands globally — this can
 take up to an hour to show up everywhere the first time, but usually appears
 within a few minutes.
 
-## 3. How to play in Discord
+## 3. Deploy to Railway (persistent hosting)
+
+The bot is a long-running process (it holds an open Discord gateway
+connection), so it needs "worker" hosting, not a serverless/on-demand
+platform. [Railway](https://railway.app) works well for this and deploys
+straight from GitHub:
+
+1. Push this repo to GitHub (already done if you're reading this from
+   `github.com/Banoonipple/whodis-bot`).
+2. On [railway.app](https://railway.app), **New Project → Deploy from GitHub
+   repo** → pick this repo.
+3. Railway auto-detects Python via `railway.json` / `.python-version` and
+   runs `python3 bot.py` (no port needs to be exposed — this isn't a web
+   server).
+4. In the service's **Variables** tab, add `DISCORD_BOT_TOKEN` with your
+   bot's token. Set it directly in Railway's dashboard — never share it
+   anywhere else.
+5. Deploy. Check the **Logs** tab for `Logged in as ... — slash commands
+   synced.` to confirm it's live.
+
+**Note:** game state is in-memory only (see Notes below) — any redeploy or
+Railway-triggered restart clears active games, same as restarting it
+locally.
+
+## 4. How to play in Discord
 
 | Command | Who uses it | What it does |
 |---|---|---|
