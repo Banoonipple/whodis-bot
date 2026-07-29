@@ -13,8 +13,13 @@ they think fits best. One deck: 148 Inbox cards / 275 Reply cards.
    leave the default intents as-is.
 4. Under **OAuth2 → URL Generator**, check scopes `bot` and
    `applications.commands`, then under **Bot Permissions** check:
-   `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`.
-5. Open the generated URL to invite the bot to your server.
+   `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`,
+   `Connect`, `Speak` (the last two are for the optional voice-channel sound
+   effects — see below).
+5. Open the generated URL to invite the bot to your server. If the bot's
+   already in your server from before these permissions were added, a server
+   admin can just grant `Connect`/`Speak` to its role directly in **Server
+   Settings → Roles** instead of re-inviting it.
 
 ## 2. Run the bot
 
@@ -67,8 +72,8 @@ locally.
 | `/whodis-join` | Everyone playing | Alternative to the button, joins via slash command. |
 | `/whodis-leave` | Anyone in lobby | Leave before the game starts. |
 | `/whodis-begin` | Lobby host | Deals 7 Reply cards to everyone and starts Round 1 (needs 3+ players). |
-| `/submit` | Non-judge players, each round | Private (ephemeral) message showing an image of your hand — pick your reply from the dropdown. |
-| `/vote` | The current Judge only | Once everyone's submitted, shows an image grid of the anonymized replies — pick the winner from the dropdown. |
+| `/submit` | Non-judge players, each round | Private (ephemeral) message showing an image of your hand — pick your reply with the numbered buttons below it. |
+| `/vote` | The current Judge only | Once everyone's submitted, shows an image grid of the anonymized replies — pick the winner with the numbered buttons below it. |
 | `/whodis-scores` | Anyone | Shows the live scoreboard. |
 | `/whodis-end` | Host or a server manager | Cancels the game in this channel. |
 
@@ -76,7 +81,7 @@ locally.
 1. Bot posts the Inbox card as an image and names the Judge.
 2. Everyone except the Judge runs `/submit` and privately picks a Reply card from an image of their hand.
 3. Once all replies are in, the bot pings the Judge to run `/vote`.
-4. The Judge sees a numbered image grid of the anonymized replies and picks a winner from the dropdown.
+4. The Judge sees a numbered image grid of the anonymized replies and picks a winner with the numbered buttons.
 5. The bot announces the winner with a side-by-side image of the Inbox message and the winning Reply, awards a point, refills hands, and — unless someone just hit the points target — starts the next round with the next player as Judge (rotates in join order).
 6. First to the target score wins; final scoreboard is posted and the game in that channel is cleared.
 
@@ -99,6 +104,29 @@ locally.
   python3 parse_cards.py           # re-parse the two CSVs -> data/deck.json
   python3 generate_card_images.py  # re-render all card PNGs (resumable)
   ```
+
+## Voice-channel sound effects
+
+- Fully automatic, zero-config: run `/whodis-begin` while you're in a voice
+  channel, and the bot joins it and plays short sound effects — a ding on
+  each new round, a blip on each submit, a chime on a round win, a bigger
+  fanfare on winning the game. It leaves the channel when the game ends
+  (`/whodis-end` or reaching the points target).
+- Entirely optional. If you're not in a voice channel, or the bot lacks
+  `Connect`/`Speak` permission there, the game just plays exactly as before
+  with no sound and no errors.
+- The clips are pure synthesized tones (`generate_sounds.py`, stdlib `wave`
+  module only) — no external audio was sourced, so there's no licensing
+  concern. Regenerate/tweak them with:
+  ```bash
+  python3 generate_sounds.py
+  ```
+- **Deploying this requires two system-level pieces the Python dependencies
+  alone don't cover**: `ffmpeg` (decodes the WAV files) and `libopus` (the
+  codec discord.py's voice encoder needs). Both are declared in
+  `nixpacks.toml` for Railway; running locally needs `ffmpeg` on your `PATH`
+  (e.g. `brew install ffmpeg` on macOS) — `libopus` is preinstalled on most
+  desktop OSes already.
 
 ## Notes
 

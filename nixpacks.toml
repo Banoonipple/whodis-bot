@@ -1,0 +1,7 @@
+[phases.setup]
+# ffmpeg: CLI binary discord.py shells out to for decoding audio (PATH-based).
+nixPkgs = ["...", "ffmpeg"]
+# libopus: shared library discord.py's own voice encoder loads via ctypes --
+# needs LD_LIBRARY_PATH wired up, which is what nixLibs does (nixPkgs alone
+# wouldn't make the .so discoverable to ctypes.util.find_library()).
+nixLibs = ["...", "libopus"]
