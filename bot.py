@@ -424,6 +424,7 @@ class TestModePasswordModal(discord.ui.Modal, title="Solo Test Mode"):
             "🧪 Solo test mode started — you + 2 auto-playing test bots, first to 3 points wins.",
             ephemeral=True,
         )
+        await connect_voice_if_possible(interaction)
         await announce_new_round(interaction.channel, game)
         await auto_advance(interaction.channel, game)
 
