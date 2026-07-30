@@ -126,12 +126,24 @@ locally.
   ```bash
   python3 generate_sounds.py
   ```
-- **Deploying this requires two system-level pieces the Python dependencies
-  alone don't cover**: `ffmpeg` (decodes the WAV files) and `libopus` (the
-  codec discord.py's voice encoder needs). Both are declared in
-  `nixpacks.toml` for Railway; running locally needs `ffmpeg` on your `PATH`
-  (e.g. `brew install ffmpeg` on macOS) — `libopus` is preinstalled on most
-  desktop OSes already.
+- **Voice needs three things beyond the bot's own code**, and all three have
+  bitten this project at least once:
+  1. **Python voice deps** — `requirements.txt` uses `discord.py[voice]`
+     rather than hand-listing them. discord.py 2.7+ needs `davey` (the DAVE
+     end-to-end-encryption library) in addition to `PyNaCl`, and it pins
+     `PyNaCl<1.6`. Listing those by hand missed `davey` entirely and pulled
+     an out-of-range PyNaCl, which failed with `RuntimeError: davey library
+     needed in order to use voice`.
+  2. **`ffmpeg`** — decodes the WAV files. From `nixPkgs` in `nixpacks.toml`;
+     locally, `brew install ffmpeg` on macOS.
+  3. **`libopus`** — the codec discord.py's encoder needs (separate from
+     ffmpeg, and *not* provided by `davey`). From `aptPkgs` in
+     `nixpacks.toml`. Note `ctypes.util.find_library("opus")` — how
+     discord.py looks for it — can return `None` in slim containers even when
+     it's installed, so `bot.py` also falls back to loading it by soname.
+- On startup the bot logs `Voice sound effects: ready` or names exactly
+  what's missing, and `/whodis-begin` logs why it did or didn't join a voice
+  channel. Check those lines first if sound isn't working.
 
 ## Notes
 

@@ -86,20 +86,56 @@ def get_game(channel_id: int) -> Optional[WhoDisGame]:
 # the actual game.
 # ---------------------------------------------------------------------------
 
+# discord.py finds libopus via ctypes.util.find_library("opus"), which shells
+# out to ldconfig and returns None in plenty of slim container images even when
+# the library IS installed (observed on Railway with libopus0 present). Fall
+# back to loading it by soname/path directly.
+OPUS_CANDIDATES = (
+    "libopus.so.0",
+    "libopus.so",
+    "opus",
+    "/usr/lib/x86_64-linux-gnu/libopus.so.0",
+    "/usr/lib/aarch64-linux-gnu/libopus.so.0",
+    "/usr/local/lib/libopus.so.0",
+    "/opt/homebrew/lib/libopus.dylib",
+    "/usr/local/lib/libopus.dylib",
+)
+
+
+def ensure_opus_loaded() -> bool:
+    """Load libopus, trying harder than discord.py's default lookup does."""
+    try:
+        if discord.opus.is_loaded():
+            return True
+    except Exception:
+        pass
+    try:
+        if discord.opus._load_default():
+            return True
+    except Exception:
+        pass
+    for name in OPUS_CANDIDATES:
+        try:
+            discord.opus.load_opus(name)
+            if discord.opus.is_loaded():
+                print(f"Voice: loaded libopus explicitly from '{name}'.")
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def report_voice_support() -> None:
     """Log whether voice can actually work, at startup.
 
-    Voice needs two system-level pieces the Python deps don't cover: the
-    ffmpeg binary (decodes our WAVs to PCM) and libopus (discord.py's own
-    encoder, which turns that PCM into what Discord's voice servers accept).
-    If either is missing, playback fails at the moment a sound is triggered
-    and -- since we deliberately never let that break the game -- the only
-    symptom would be silence with no explanation. Say so up front instead."""
+    Voice needs pieces the bot can't supply itself: the ffmpeg binary (decodes
+    our WAVs to PCM) and libopus (discord.py's own encoder, which turns that
+    PCM into what Discord's voice servers accept). If either is missing,
+    playback fails when a sound is triggered and -- since we deliberately never
+    let that break the game -- the only symptom would be silence with no
+    explanation. Say so up front instead."""
     ffmpeg = shutil.which("ffmpeg")
-    try:
-        opus_ok = discord.opus.is_loaded() or discord.opus._load_default()
-    except Exception:
-        opus_ok = False
+    opus_ok = ensure_opus_loaded()
 
     if ffmpeg and opus_ok:
         print("Voice sound effects: ready (ffmpeg + libopus both available).")
