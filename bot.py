@@ -19,6 +19,7 @@ One game runs per channel at a time, stored in memory (state resets on bot resta
 """
 import os
 import random
+from pathlib import Path
 from typing import Dict, Optional
 
 import discord
@@ -27,6 +28,12 @@ from discord.ext import commands
 
 from game import WhoDisGame, GameError
 import card_images as ci
+
+SOUNDS = Path(__file__).parent / "assets" / "sounds"
+SOUND_NEW_ROUND = SOUNDS / "new_round.wav"
+SOUND_SUBMIT = SOUNDS / "submit.wav"
+SOUND_ROUND_WIN = SOUNDS / "round_win.wav"
+SOUND_GAME_WIN = SOUNDS / "game_win.wav"
 
 INTENTS = discord.Intents.default()
 
@@ -69,6 +76,48 @@ def get_game(channel_id: int) -> Optional[WhoDisGame]:
 
 
 # ---------------------------------------------------------------------------
+# Voice sound effects
+#
+# Entirely optional/automatic: the bot joins whichever voice channel the host
+# is in when the game starts, and leaves when it ends. If the host isn't in
+# voice, or the bot lacks Connect/Speak permission there, every function here
+# just no-ops -- sound is a bonus, never a requirement, and can never break
+# the actual game.
+# ---------------------------------------------------------------------------
+
+async def connect_voice_if_possible(interaction: discord.Interaction) -> None:
+    voice_state = interaction.user.voice
+    if voice_state is None or voice_state.channel is None:
+        return
+    if interaction.guild is None or interaction.guild.voice_client is not None:
+        return
+    try:
+        await voice_state.channel.connect()
+    except (discord.ClientException, discord.Forbidden, discord.HTTPException):
+        pass
+
+
+async def disconnect_voice(guild: Optional[discord.Guild]) -> None:
+    if guild is not None and guild.voice_client is not None:
+        try:
+            await guild.voice_client.disconnect(force=True)
+        except discord.HTTPException:
+            pass
+
+
+async def play_sound(guild: Optional[discord.Guild], path: Path) -> None:
+    if guild is None or guild.voice_client is None:
+        return
+    vc = guild.voice_client
+    if vc.is_playing():
+        return  # skip rather than interrupt whatever's already playing
+    try:
+        vc.play(discord.FFmpegPCMAudio(str(path)))
+    except Exception:
+        pass  # never let a playback failure break the game
+
+
+# ---------------------------------------------------------------------------
 # UI Components
 # ---------------------------------------------------------------------------
 
@@ -95,6 +144,7 @@ class SubmitButton(discord.ui.Button):
             content="✅ Reply submitted! Waiting on the rest of the group…", view=None
         )
 
+        await play_sound(interaction.guild, SOUND_SUBMIT)
         await update_submission_progress(interaction.channel, game)
         await auto_advance(interaction.channel, game)
 
@@ -224,14 +274,17 @@ async def announce_round_result(channel: discord.abc.Messageable, game: WhoDisGa
         pass
 
     if game.phase == WhoDisGame.PHASE_FINISHED:
+        await play_sound(getattr(channel, "guild", None), SOUND_GAME_WIN)
         board = "\n".join(f"**{p.score}** — {p.name}" for p in game.scoreboard())
         await channel.send(
             f"🎉 **{result['winner_name']} wins the game!** 🎉\n\n**Final scores:**\n{board}"
         )
         games.pop(channel.id, None)
         round_messages.pop(channel.id, None)
+        await disconnect_voice(getattr(channel, "guild", None))
         return
 
+    await play_sound(getattr(channel, "guild", None), SOUND_ROUND_WIN)
     await announce_new_round(channel, game)
 
 
@@ -258,6 +311,7 @@ async def announce_new_round(channel: discord.abc.Messageable, game: WhoDisGame)
         file=file,
     )
     round_messages[channel.id] = msg
+    await play_sound(getattr(channel, "guild", None), SOUND_NEW_ROUND)
 
 
 async def update_submission_progress(channel: discord.abc.Messageable, game: WhoDisGame):
@@ -422,6 +476,7 @@ async def whodis_begin(interaction: discord.Interaction):
         f"🎬 Game on! {game.player_count()} players, first to **{game.points_to_win}** points wins.\n"
         f"Everyone's been dealt 7 Reply cards — use **/submit** each round to play one."
     )
+    await connect_voice_if_possible(interaction)
     await announce_new_round(interaction.channel, game)
     await auto_advance(interaction.channel, game)
 
@@ -559,6 +614,7 @@ async def whodis_end(interaction: discord.Interaction):
     games.pop(interaction.channel_id, None)
     round_messages.pop(interaction.channel_id, None)
     await interaction.response.send_message("🛑 Game ended.")
+    await disconnect_voice(interaction.guild)
 
 
 @bot.event
