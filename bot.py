@@ -118,15 +118,51 @@ def report_voice_support() -> None:
 
 
 async def connect_voice_if_possible(interaction: discord.Interaction) -> None:
-    voice_state = interaction.user.voice
-    if voice_state is None or voice_state.channel is None:
-        return
-    if interaction.guild is None or interaction.guild.voice_client is not None:
-        return
+    """Join the caller's voice channel, if we can. Logs why when we can't.
+
+    This runs before the round is announced, so it MUST NOT raise -- an
+    uncaught error here would take the round announcement down with it and
+    leave the game silently stuck after "Game on!". Hence the bare except:
+    every branch is logged, nothing escapes.
+    """
     try:
-        await voice_state.channel.connect()
-    except (discord.ClientException, discord.Forbidden, discord.HTTPException) as e:
-        print(f"Voice connect failed ({type(e).__name__}: {e}) -- continuing without sound.")
+        if interaction.guild is None:
+            print("Voice: skipped (not in a guild).")
+            return
+        if interaction.guild.voice_client is not None:
+            print("Voice: already connected to a channel in this guild.")
+            return
+
+        voice_state = getattr(interaction.user, "voice", None)
+        if voice_state is None or voice_state.channel is None:
+            print(
+                f"Voice: {interaction.user} is not in a voice channel "
+                f"(or their voice state isn't visible to the bot), so there's "
+                f"nothing to join. Join a voice channel BEFORE starting the game."
+            )
+            return
+
+        channel = voice_state.channel
+        perms = channel.permissions_for(interaction.guild.me)
+        if not perms.connect or not perms.speak:
+            missing = [n for n, ok in (("Connect", perms.connect), ("Speak", perms.speak)) if not ok]
+            print(
+                f"Voice: missing {'/'.join(missing)} permission on '{channel.name}'. "
+                f"Grant it to the bot's role (or in that channel's own permission "
+                f"overrides, which beat role-level grants)."
+            )
+            return
+
+        # Short timeout: Discord voice needs outbound UDP, and if the host
+        # blocks it this hangs for the full default 30s before failing.
+        await channel.connect(timeout=15.0, reconnect=False)
+        print(f"Voice: connected to '{channel.name}'.")
+    except Exception as e:
+        print(
+            f"Voice: connect failed ({type(e).__name__}: {e}) -- continuing "
+            f"without sound. If this is a timeout, the host may be blocking "
+            f"the outbound UDP that Discord voice requires."
+        )
 
 
 async def disconnect_voice(guild: Optional[discord.Guild]) -> None:
