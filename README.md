@@ -2,7 +2,7 @@
 
 A Discord bot for **Who Dis?**, an Apples-to-Apples-style party game where a
 Judge reads an "Inbox" text message and everyone else submits a "Reply" card
-they think fits best. One deck: 148 Inbox cards / 275 Reply cards.
+they think fits best. One deck: 149 Inbox cards / 275 Reply cards.
 
 ## 1. Create the Discord bot
 
@@ -87,13 +87,18 @@ locally.
 
 ## Card art & color scheme
 
-- Every one of the 424 cards (148 Inbox + 275 Reply, plus the card back) is
+- Every one of the 425 cards (149 Inbox + 275 Reply, plus the card back) is
   individually rendered as a PNG built around `WhoDis?Logo.png`: a bold
   rounded double-line frame (red for Inbox, green for Reply), the logo's
   mascot icon + a label pill up top, and the full logo as a small watermark
   on fronts / large and centered on the uniform card **back** (only ever
   shown to other players — your own hand always shows fronts, with the
   actual text).
+- `I-149` is a one-off custom card: its art was hand-rendered with neon pink
+  (`#FF13F0`) text rather than the standard styling, and is committed as-is.
+  `generate_card_images.py` skips any card image that already exists, so
+  re-running it preserves this rather than overwriting it with the default
+  look.
 - Text/UI colors use the brand palette sourced from the logo: red
   `#A40607`, dark green `#07504E`, and yellow `#FEC103` — used for card
   labels/pills and for the bot's embed accent colors (red for new rounds,
