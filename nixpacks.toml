@@ -1,7 +1,18 @@
 [phases.setup]
 # ffmpeg: CLI binary discord.py shells out to for decoding audio (PATH-based).
+# Installed from nixpkgs, which is Nixpacks' recommended source and is
+# confirmed working (it shows up in the build's setup phase).
 nixPkgs = ["...", "ffmpeg"]
-# libopus: shared library discord.py's own voice encoder loads via ctypes --
-# needs LD_LIBRARY_PATH wired up, which is what nixLibs does (nixPkgs alone
-# wouldn't make the .so discoverable to ctypes.util.find_library()).
-nixLibs = ["...", "libopus"]
+
+# libopus: the shared library discord.py's OWN voice encoder loads via ctypes.
+# This is separate from ffmpeg -- ffmpeg decodes our WAVs to PCM, then
+# discord.py encodes that to Opus before sending it to Discord's voice
+# servers. Without it, voice_client.play() raises and no sound is produced.
+#
+# Installed via apt rather than nixLibs on purpose: the Nixpacks base image is
+# Ubuntu, `libopus0` is the standard Debian runtime package (lands on the
+# normal loader path so ctypes.util.find_library("opus") finds it), and
+# aptPkgs is a documented field. The nixLibs spread syntax (["...", "libopus"])
+# is NOT documented as supported and was a real risk of silently installing
+# nothing.
+aptPkgs = ["libopus0"]

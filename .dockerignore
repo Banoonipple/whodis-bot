@@ -1,0 +1,24 @@
+# Trims the build context uploaded to Railway's builder. Everything the bot
+# needs at runtime (bot.py, game.py, card_images.py, data/deck.json,
+# assets/cards, assets/fonts, assets/sounds) is deliberately NOT listed here.
+
+# Version control (the single biggest chunk -- tens of MB, zero build value)
+.git/
+.gitignore
+
+# Local Claude Code tooling / installed skills -- no runtime relevance
+.claude/
+
+# Superseded decks and card art, kept locally but never deployed
+data/_archive_old/
+
+# Secrets must never reach the image (Railway injects the token as a variable)
+.env
+
+# Python cruft
+__pycache__/
+*.pyc
+.venv/
+
+# OS cruft
+.DS_Store

@@ -19,6 +19,7 @@ One game runs per channel at a time, stored in memory (state resets on bot resta
 """
 import os
 import random
+import shutil
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -85,6 +86,37 @@ def get_game(channel_id: int) -> Optional[WhoDisGame]:
 # the actual game.
 # ---------------------------------------------------------------------------
 
+def report_voice_support() -> None:
+    """Log whether voice can actually work, at startup.
+
+    Voice needs two system-level pieces the Python deps don't cover: the
+    ffmpeg binary (decodes our WAVs to PCM) and libopus (discord.py's own
+    encoder, which turns that PCM into what Discord's voice servers accept).
+    If either is missing, playback fails at the moment a sound is triggered
+    and -- since we deliberately never let that break the game -- the only
+    symptom would be silence with no explanation. Say so up front instead."""
+    ffmpeg = shutil.which("ffmpeg")
+    try:
+        opus_ok = discord.opus.is_loaded() or discord.opus._load_default()
+    except Exception:
+        opus_ok = False
+
+    if ffmpeg and opus_ok:
+        print("Voice sound effects: ready (ffmpeg + libopus both available).")
+        return
+    missing = []
+    if not ffmpeg:
+        missing.append("ffmpeg (not on PATH)")
+    if not opus_ok:
+        missing.append("libopus (could not be loaded)")
+    print(
+        f"Voice sound effects: DISABLED -- missing {', '.join(missing)}. "
+        f"The game still works normally; only the sounds are affected. "
+        f"On Railway these come from nixpacks.toml; locally, install them "
+        f"(e.g. 'brew install ffmpeg opus' on macOS)."
+    )
+
+
 async def connect_voice_if_possible(interaction: discord.Interaction) -> None:
     voice_state = interaction.user.voice
     if voice_state is None or voice_state.channel is None:
@@ -93,8 +125,8 @@ async def connect_voice_if_possible(interaction: discord.Interaction) -> None:
         return
     try:
         await voice_state.channel.connect()
-    except (discord.ClientException, discord.Forbidden, discord.HTTPException):
-        pass
+    except (discord.ClientException, discord.Forbidden, discord.HTTPException) as e:
+        print(f"Voice connect failed ({type(e).__name__}: {e}) -- continuing without sound.")
 
 
 async def disconnect_voice(guild: Optional[discord.Guild]) -> None:
@@ -113,8 +145,10 @@ async def play_sound(guild: Optional[discord.Guild], path: Path) -> None:
         return  # skip rather than interrupt whatever's already playing
     try:
         vc.play(discord.FFmpegPCMAudio(str(path)))
-    except Exception:
-        pass  # never let a playback failure break the game
+    except Exception as e:
+        # Never let a playback failure break the game -- but do say why, so a
+        # missing codec/binary isn't an invisible "sound just doesn't work".
+        print(f"Sound playback failed for {path.name} ({type(e).__name__}: {e}).")
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +656,7 @@ async def whodis_end(interaction: discord.Interaction):
 async def on_ready():
     await bot.tree.sync()
     print(f"Logged in as {bot.user} — slash commands synced.")
+    report_voice_support()
 
 
 def main():
