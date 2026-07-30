@@ -15,4 +15,10 @@ nixPkgs = ["...", "ffmpeg"]
 # aptPkgs is a documented field. The nixLibs spread syntax (["...", "libopus"])
 # is NOT documented as supported and was a real risk of silently installing
 # nothing.
-aptPkgs = ["libopus0"]
+#
+# libopus-dev is included alongside the runtime lib on purpose: it provides the
+# unversioned `libopus.so` symlink. ctypes.util.find_library("opus") -- which
+# is how discord.py looks for it -- shells out to ldconfig and returned None on
+# Railway even with libopus0 installed. The symlink makes that lookup work;
+# bot.py additionally falls back to loading by soname if it still doesn't.
+aptPkgs = ["libopus0", "libopus-dev"]

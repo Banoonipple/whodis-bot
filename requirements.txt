@@ -1,3 +1,8 @@
-discord.py>=2.3.2
+# Use discord.py's own [voice] extra rather than hand-listing its voice deps.
+# Hand-listing got this wrong twice: it missed `davey` entirely (discord.py
+# 2.7+ requires it for voice and raises "davey library needed in order to use
+# voice" without it), and an unbounded PyNaCl>=1.5.0 resolved to 1.6.2, which
+# is outside the PyNaCl<1.6 range discord.py actually declares.
+# Floor is 2.7.1 because that's the version this was verified against.
+discord.py[voice]>=2.7.1
 Pillow>=10.0.0
-PyNaCl>=1.5.0
